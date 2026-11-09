@@ -1,0 +1,31 @@
+import React from 'react';
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { render } from 'ink-testing-library';
+import { UI, safeText } from '../src/cli/ui.js';
+import { Agent } from '../src/agent/agent.js';
+import { SessionManager } from '../src/session/session.js';
+import { FileSessionStore } from '../src/session/session.js';
+import { ContextManager } from '../src/context/context.js';
+import { MemoryManager } from '../src/memory/memory.js';
+import { Telemetry } from '../src/middleware/telemetry.js';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { ModelClient } from '../src/types.js';
+test('terminal output strips control sequences',()=>assert.equal(safeText('\x1b[31mhello\x1b[0m\x07'),'hello'));
+test('CLI shows header and model selection',async()=>{
+  const client:ModelClient={models:async()=>[{id:'test/model'}],generate:async()=>({text:'answer',finishReason:'stop'})};
+  const ui=render(<UI client={client} sessions={{store:{}} as SessionManager} agent={{} as Agent}/>);
+  await new Promise(r=>setTimeout(r,100));assert.match(ui.lastFrame()??'',/C O D E/);assert.match(ui.lastFrame()??'',/test\/model/);ui.unmount();ui.cleanup();
+});
+test('CLI resumes, submits, shows busy state and reports errors',async t=>{
+  const dir=await mkdtemp(join(tmpdir(),'arena-ui-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  let finish: (()=>void) | undefined; let fail=false;
+  const client:ModelClient={models:async()=>[{id:'test/model',contextLength:4000}],generate:async()=>{await new Promise<void>(r=>{finish=r;});if(fail)throw new Error('private');return{text:'test answer',finishReason:'stop'};}};
+  const telemetry=new Telemetry(()=>{});const sessions=new SessionManager(new FileSessionStore(dir));const context=new ContextManager(client,telemetry);const agent=new Agent(client,sessions,context,new MemoryManager(client,context,telemetry),telemetry);const session=await sessions.create('test/model');
+  const ui=render(<UI agent={agent} sessions={sessions} client={client} resume={session.id}/>);
+  t.after(()=>{ui.unmount();ui.cleanup();});const wait=()=>new Promise(r=>setTimeout(r,150));await wait();
+  ui.stdin.write('hello');await wait();ui.stdin.write('\r');await wait();assert.match(ui.lastFrame()??'',/running/);finish?.();await wait();assert.match(ui.lastFrame()??'',/test answer/);
+  fail=true;ui.stdin.write('second');await wait();ui.stdin.write('\r');await wait();finish?.();await wait();assert.match(ui.lastFrame()??'',/Run failed/);assert.doesNotMatch(ui.lastFrame()??'',/private/);
+});

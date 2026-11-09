@@ -1,0 +1,25 @@
+{
+  "name": "code-arena-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently --kill-others -n agent,web -c cyan,magenta \"npm run dev:agent\" \"npm run dev:web\"",
+    "dev:agent": "npm run dev --workspace=agent",
+    "dev:web": "npm run dev --workspace=code-arena",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "postinstall": "patch-package --error-on-fail"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "patch-package": "^8.0.1"
+  }
+}

@@ -1,0 +1,40 @@
+diff --git a/node_modules/rubiks-cube-mcp-server/dist/app.js b/node_modules/rubiks-cube-mcp-server/dist/app.js
+index 1685b19..cfce837 100644
+--- a/node_modules/rubiks-cube-mcp-server/dist/app.js
++++ b/node_modules/rubiks-cube-mcp-server/dist/app.js
+@@ -48,7 +48,7 @@ class RubiksCubeMCPServer {
+                 nextAction: currentState.solved ? "finish" : "manipulateCube"
+             };
+             // MCP UI 리소스 생성 (예: 게임 링크)
+-            const gameUrl = `http://localhost:3000/game/${gameId}`;
++            const gameUrl = `http://127.0.0.1:${this.visualizationServer.server.address().port}/game/${gameId}`;
+             const uiResponse = {
+                 type: "resource",
+                 resource: {
+diff --git a/node_modules/rubiks-cube-mcp-server/dist/cubeLogic.js b/node_modules/rubiks-cube-mcp-server/dist/cubeLogic.js
+index a3f6437..d48fccb 100644
+--- a/node_modules/rubiks-cube-mcp-server/dist/cubeLogic.js
++++ b/node_modules/rubiks-cube-mcp-server/dist/cubeLogic.js
+@@ -173,7 +173,7 @@ class RubiksCube {
+         this.state.faces.right[0][2] = this.state.faces.bottom[2][2];
+         this.state.faces.right[1][2] = this.state.faces.bottom[2][1];
+         this.state.faces.right[2][2] = this.state.faces.bottom[2][0];
+-        this.state.faces.bottom[2] = [this.state.faces.left[2][0], this.state.faces.left[1][0], this.state.faces.left[0][0]];
++        this.state.faces.bottom[2] = [this.state.faces.left[0][0], this.state.faces.left[1][0], this.state.faces.left[2][0]];
+         this.state.faces.left[0][0] = temp[2];
+         this.state.faces.left[1][0] = temp[1];
+         this.state.faces.left[2][0] = temp[0];
+diff --git a/node_modules/rubiks-cube-mcp-server/dist/visualization/VisualizationServer.js b/node_modules/rubiks-cube-mcp-server/dist/visualization/VisualizationServer.js
+index f99e5bd..fe6ee5c 100644
+--- a/node_modules/rubiks-cube-mcp-server/dist/visualization/VisualizationServer.js
++++ b/node_modules/rubiks-cube-mcp-server/dist/visualization/VisualizationServer.js
+@@ -141,7 +141,8 @@ class VisualizationServer {
+     }
+     // 서버 시작
+     start(port = 3000) {
+-        this.server.listen(port, () => {
++        this.server.listen(port, '127.0.0.1', () => {
++            console.error('CODE_ARENA_CUBE_READY http://127.0.0.1:' + this.server.address().port);
+             console.error(`🎲 3D Cube visualization server running on http://localhost:${port}`);
+             console.error(`🌐 WebSocket enabled for real-time updates`);
+         });

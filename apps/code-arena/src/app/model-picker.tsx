@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { ModelOption } from "@code-arena/contracts";
 
 export default function ModelPicker({
+  id = "model",
   value,
   models,
   status,
@@ -12,6 +13,7 @@ export default function ModelPicker({
   onChange,
   onRetry,
 }: {
+  id?: string;
   value: string;
   models: ModelOption[];
   status: "loading" | "ready" | "error";
@@ -43,21 +45,22 @@ export default function ModelPicker({
       <div
         className="model-picker"
         onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+          if (!event.currentTarget.contains(event.relatedTarget))
+            setOpen(false);
         }}
       >
         <div className="model-input">
           <input
             ref={input}
-            id="model"
+            id={id}
             role="combobox"
             aria-autocomplete="list"
             aria-expanded={expanded}
-            aria-controls="model-options"
+            aria-controls={`${id}-options`}
             aria-activedescendant={
-              expanded && activeOption ? `model-option-${active}` : undefined
+              expanded && activeOption ? `${id}-option-${active}` : undefined
             }
-            aria-describedby="model-help"
+            aria-describedby={`${id}-help`}
             autoComplete="off"
             value={value}
             placeholder="Search popular models or enter an ID"
@@ -76,11 +79,16 @@ export default function ModelPicker({
               } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                 event.preventDefault();
                 setOpen(true);
-                const next = event.key === "ArrowDown"
-                  ? Math.min(active + 1, options.length - 1)
-                  : active < 0 ? options.length - 1 : Math.max(active - 1, 0);
+                const next =
+                  event.key === "ArrowDown"
+                    ? Math.min(active + 1, options.length - 1)
+                    : active < 0
+                      ? options.length - 1
+                      : Math.max(active - 1, 0);
                 setActive(next);
-                document.getElementById(`model-option-${next}`)?.scrollIntoView({ block: "nearest" });
+                document
+                  .getElementById(`model-option-${next}`)
+                  ?.scrollIntoView({ block: "nearest" });
               } else if (event.key === "Enter" && expanded && activeOption) {
                 event.preventDefault();
                 choose(activeOption);
@@ -92,7 +100,7 @@ export default function ModelPicker({
             className="model-toggle"
             aria-label={expanded ? "Close model list" : "Browse popular models"}
             aria-expanded={expanded}
-            aria-controls="model-options"
+            aria-controls={`${id}-options`}
             disabled={disabled}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => {
@@ -101,8 +109,18 @@ export default function ModelPicker({
               setActive(-1);
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-              <path d="m3 4.5 3 3 3-3" stroke="currentColor" strokeWidth="1.2" />
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="m3 4.5 3 3 3-3"
+                stroke="currentColor"
+                strokeWidth="1.2"
+              />
             </svg>
           </button>
         </div>
@@ -112,23 +130,37 @@ export default function ModelPicker({
               <span>{query ? "MATCHING MODELS" : "POPULAR ON OPENROUTER"}</span>
               <span>{query ? matches.length : models.length}</span>
             </div>
-            <div id="model-options" role="listbox" aria-label="OpenRouter models" aria-busy={status === "loading"}>
+            <div
+              className="model-options"
+              id={`${id}-options`}
+              role="listbox"
+              aria-label="OpenRouter models"
+              aria-busy={status === "loading"}
+            >
               {options.map((model, index) => (
                 <div
                   key={model.id}
-                  id={`model-option-${index}`}
+                  id={`${id}-option-${index}`}
                   role="option"
                   aria-selected={model.id === value}
                   className={`model-option${active === index ? " active" : ""}`}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => choose(model)}
                 >
-                  {!query && <span className="model-rank">{String(index + 1).padStart(2, "0")}</span>}
+                  {!query && (
+                    <span className="model-rank">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                  )}
                   <span className="model-option-copy">
                     <span className="model-name">{model.name ?? model.id}</span>
                     <span className="model-id">{model.id}</span>
                   </span>
-                  {model.id === value && <span className="model-check" aria-hidden="true">✓</span>}
+                  {model.id === value && (
+                    <span className="model-check" aria-hidden="true">
+                      ✓
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -145,22 +177,33 @@ export default function ModelPicker({
             )}
             {options.length > 0 && (
               <div className="model-menu-foot">
-                {query ? "Results ordered by popularity" : "Ranked by weekly token usage"}
+                {query
+                  ? "Results ordered by popularity"
+                  : "Ranked by weekly token usage"}
                 {matches.length > options.length && " · Type to find more"}
               </div>
             )}
           </div>
         )}
       </div>
-      <p id="model-help" className="field-help model-help" role="status">
-        {status === "loading" ? "Loading popular models from OpenRouter…" : status === "error" ? (
+      <p id={`${id}-help`} className="field-help model-help" role="status">
+        {status === "loading" ? (
+          "Loading popular models from OpenRouter…"
+        ) : status === "error" ? (
           <>
             <span title={error}>Could not load models. Enter an ID or </span>
-            <button type="button" className="model-retry" onClick={onRetry}>retry</button>.
+            <button type="button" className="model-retry" onClick={onRetry}>
+              retry
+            </button>
+            .
           </>
-        ) : selected ? selected.name ?? selected.id : models.length ? (
+        ) : selected ? (
+          (selected.name ?? selected.id)
+        ) : models.length ? (
           `${models.length.toLocaleString()} tool-capable models · Popular first`
-        ) : "Enter an OpenRouter model ID to begin."}
+        ) : (
+          "Enter an OpenRouter model ID to begin."
+        )}
       </p>
     </>
   );

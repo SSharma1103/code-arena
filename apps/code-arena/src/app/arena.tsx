@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import CompareWorkspace from "./compare-workspace";
+import RunToggle from "./run-toggle";
 import ModelPicker from "./model-picker";
 import type {
   ArenaEvent,
@@ -12,7 +14,7 @@ import type {
   SessionView,
 } from "@code-arena/contracts";
 
-const modes: Record<
+export const modes: Record<
   ArenaMode,
   {
     name: string;
@@ -60,7 +62,7 @@ const modes: Record<
     verb: "Prepare cube",
   },
 };
-async function api<T>(
+export async function api<T>(
   path: string,
   method = "GET",
   body?: unknown,
@@ -212,13 +214,42 @@ function CubeFrame({ session }: { session: SessionView }) {
 export default function Arena({
   initialMode,
   sessionId,
+  initialCompare = false,
+  sessionB,
 }: {
   initialMode?: ArenaMode;
   sessionId?: string;
+  initialCompare?: boolean;
+  sessionB?: string;
 }) {
+  const [compare, setCompare] = useState(initialCompare);
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
+  if (compare && initialMode)
+    return (
+      <CompareWorkspace
+        mode={initialMode}
+        sessionIds={[sessionId, sessionB]}
+        onSingle={() => {
+          history.replaceState(null, "", `/arena/${initialMode}`);
+          setCompare(false);
+        }}
+      />
+    );
   return (
     <ArenaWorkspace
+      compare={compare}
+      onCompare={(value) => {
+        history.replaceState(
+          null,
+          "",
+          initialMode
+            ? `/arena/${initialMode}${value ? "?compare=1" : ""}`
+            : value
+              ? "/?compare=1"
+              : "/",
+        );
+        setCompare(value);
+      }}
       key={workspaceVersion}
       initialMode={initialMode}
       sessionId={workspaceVersion === 0 ? sessionId : undefined}
@@ -233,10 +264,14 @@ function ArenaWorkspace({
   initialMode,
   sessionId,
   onNewSession,
+  compare,
+  onCompare,
 }: {
   initialMode?: ArenaMode;
   sessionId?: string;
   onNewSession(mode: ArenaMode): void;
+  compare: boolean;
+  onCompare(value: boolean): void;
 }) {
   const [mode, setMode] = useState<ArenaMode | undefined>(initialMode),
     [prompt, setPrompt] = useState(
@@ -246,7 +281,9 @@ function ArenaWorkspace({
     [openRouterApiKey, setOpenRouterApiKey] = useState(""),
     [showKey, setShowKey] = useState(false),
     [models, setModels] = useState<ModelOption[]>([]),
-    [modelStatus, setModelStatus] = useState<"loading" | "ready" | "error">("loading"),
+    [modelStatus, setModelStatus] = useState<"loading" | "ready" | "error">(
+      "loading",
+    ),
     [modelError, setModelError] = useState(""),
     [modelAttempt, setModelAttempt] = useState(0),
     [maxScreenshots, setMaxScreenshots] = useState(3),
@@ -384,7 +421,9 @@ function ArenaWorkspace({
           mode,
           model,
           maxScreenshots,
-          ...(openRouterApiKey.trim() ? { openRouterApiKey: openRouterApiKey.trim() } : {}),
+          ...(openRouterApiKey.trim()
+            ? { openRouterApiKey: openRouterApiKey.trim() }
+            : {}),
         });
         setOpenRouterApiKey("");
         setShowKey(false);
@@ -442,9 +481,7 @@ function ArenaWorkspace({
         </header>
         <div className="intro-line">
           <span>ONE PROMPT. FOUR POSSIBILITIES.</span>
-          <span>
-            CHOOSE YOUR CANVAS <span aria-hidden="true">↓</span>
-          </span>
+          <RunToggle compare={compare} onChange={onCompare} />
         </div>
         <div className="quadrants">
           {(Object.entries(modes) as [ArenaMode, typeof modes.svg][]).map(
@@ -452,7 +489,7 @@ function ArenaWorkspace({
               <Link
                 className={`quadrant mode-${key}`}
                 key={key}
-                href={`/arena/${key}`}
+                href={`/arena/${key}${compare ? "?compare=1" : ""}`}
               >
                 <div className="quadrant-top">
                   <span>
@@ -492,6 +529,11 @@ function ArenaWorkspace({
         <div className="breadcrumb">
           <span>/</span> {selected?.name}
         </div>
+        <RunToggle
+          compare={false}
+          disabled={Boolean(id) || busy}
+          onChange={onCompare}
+        />
         <div className="header-actions">
           <span className="connection">
             <span
@@ -507,21 +549,23 @@ function ArenaWorkspace({
             >
               Start new session <Arrow />
             </button>
-          ) : session && (
-            <button
-              className="text-button"
-              disabled={busy}
-              onClick={() =>
-                void act(async () => {
-                  setCleanup(
-                    await api<CleanupBrief>("sessions/" + id, "DELETE"),
-                  );
-                  setSession(await api<SessionView>("sessions/" + id));
-                })
-              }
-            >
-              End session ↗
-            </button>
+          ) : (
+            session && (
+              <button
+                className="text-button"
+                disabled={busy}
+                onClick={() =>
+                  void act(async () => {
+                    setCleanup(
+                      await api<CleanupBrief>("sessions/" + id, "DELETE"),
+                    );
+                    setSession(await api<SessionView>("sessions/" + id));
+                  })
+                }
+              >
+                End session ↗
+              </button>
+            )
           )}
         </div>
       </header>
@@ -544,23 +588,42 @@ function ArenaWorkspace({
             </label>
             {session ? (
               <div className="credential-status" role="status">
-                {session.credentialSource === "user" ? "Using your key" : "Using default key"}
+                {session.credentialSource === "user"
+                  ? "Using your key"
+                  : "Using default key"}
               </div>
             ) : (
               <div className="credential-input">
-                <input id="openrouter-key" type={showKey ? "text" : "password"}
-                  value={openRouterApiKey} onChange={(event) => setOpenRouterApiKey(event.target.value)}
-                  placeholder="Leave blank to use default" autoComplete="off" spellCheck={false}
-                  autoCapitalize="none" maxLength={512} disabled={busy || Boolean(id)}
-                  aria-describedby="credential-help" />
-                <button type="button" className="text-button" disabled={busy || Boolean(id)}
-                  aria-label={showKey ? "Hide API key" : "Show API key"} aria-pressed={showKey}
-                  onClick={() => setShowKey((value) => !value)}>{showKey ? "Hide" : "Show"}</button>
+                <input
+                  id="openrouter-key"
+                  type={showKey ? "text" : "password"}
+                  value={openRouterApiKey}
+                  onChange={(event) => setOpenRouterApiKey(event.target.value)}
+                  placeholder="Leave blank to use default"
+                  autoComplete="off"
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  maxLength={512}
+                  disabled={busy || Boolean(id)}
+                  aria-describedby="credential-help"
+                />
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={busy || Boolean(id)}
+                  aria-label={showKey ? "Hide API key" : "Show API key"}
+                  aria-pressed={showKey}
+                  onClick={() => setShowKey((value) => !value)}
+                >
+                  {showKey ? "Hide" : "Show"}
+                </button>
               </div>
             )}
-            <p className="field-help" id="credential-help">{session
-              ? "Fixed for this session. Start a new session to change keys."
-              : "Leave blank to use the default key. Your key is used only for this session."}</p>
+            <p className="field-help" id="credential-help">
+              {session
+                ? "Fixed for this session. Start a new session to change keys."
+                : "Leave blank to use the default key. Your key is used only for this session."}
+            </p>
           </div>
           <label className="field-label" htmlFor="model">
             01 <span>Choose your model</span>
@@ -705,239 +768,291 @@ function ArenaWorkspace({
             TEMPORARY WORKSPACE <span>LOCAL / PRIVATE</span>
           </div>
         </aside>
-        <section className="output">
-          <div className="output-toolbar">
-            <div className="tabs">
-              {["preview", "source", "reviews"].map((name) => (
-                <button
-                  key={name}
-                  className={tab === name ? "active" : ""}
-                  onClick={() => setTab(name)}
-                  disabled={name === "source" && mode === "cube"}
-                >
-                  {name}
-                  {name === "reviews" &&
-                    Boolean(session?.reviews.length) &&
-                    ` (${session?.reviews.length})`}
-                </button>
-              ))}
-            </div>
-            <div className="artifact-actions">
-              {session && session.artifacts.length > 1 && (
-                <select
-                  aria-label="Select artifact"
-                  value={artifact?.id}
-                  onChange={(e) => setArtifactId(e.target.value)}
-                >
-                  {session.artifacts.map((a, i) => (
-                    <option value={a.id} key={a.id}>
-                      Version {i + 1}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {artifactUrl && (
-                <a href={artifactUrl + "?download=1"} download>
-                  Download ↓
-                </a>
-              )}
-            </div>
-          </div>
-          <div
-            className={`preview-stage ${artifact || session?.cube ? "has-output" : ""}`}
-          >
-            {ended ? (
-              <div className="end-card">
-                <span className="eyebrow">WORKSPACE CLOSED</span>
-                <h2>All wrapped up.</h2>
-                {cleanup ? (
-                  <>
-                    <p>{cleanup.filesDeleted} temporary files deleted.</p>
-                    <p>
-                      Preview server{" "}
-                      {cleanup.previewStopped ? "stopped" : "could not stop"} ·
-                      Cube server{" "}
-                      {cleanup.serverStopped ? "stopped" : "could not stop"} ·
-                      Browser{" "}
-                      {cleanup.browserClosed ? "closed" : "could not close"}
-                    </p>
-                    <p>
-                      {cleanup.modelCalls} model calls · {cleanup.toolCalls}{" "}
-                      tool calls ·{" "}
-                      {cleanup.tokens?.toLocaleString() ?? "Unavailable"} tokens
-                    </p>
-                    {cleanup.errors.map((e) => (
-                      <p className="error-message" key={e}>
-                        {e}
-                      </p>
-                    ))}
-                  </>
-                ) : (
-                  <p>This session has expired. Create a new one to continue.</p>
-                )}
-              </div>
-            ) : tab === "source" ? (
-              <pre className="source-code">
-                {artifact
-                  ? source.url === artifactUrl
-                    ? source.text
-                    : "Loading source…"
-                  : "Your generated source will appear here."}
-              </pre>
-            ) : tab === "reviews" ? (
-              <div className="review-gallery">
-                {session?.reviews.length ? (
-                  session.reviews.map((image, i) => (
-                    <figure key={image.id}>
-                      <Image
-                        unoptimized
-                        width={1280}
-                        height={720}
-                        src={`data:image/png;base64,${image.data}`}
-                        alt={`Agent visual review ${i + 1}`}
-                      />
-                      <figcaption>
-                        REVIEW {String(i + 1).padStart(2, "0")} / {image.tool}
-                      </figcaption>
-                    </figure>
-                  ))
-                ) : (
-                  <div className="empty-reviews">
-                    <h2>A second look.</h2>
-                    <p>
-                      Agent screenshots and visual reviews will appear here.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : session?.cube ? (
-              <>
-                <CubeFrame session={session} />
-                <div className="cube-stats">
-                  <span>
-                    {session.cubeStarted
-                      ? session.cube.cube.solved
-                        ? "SOLVED"
-                        : running
-                          ? "AGENT IS SOLVING"
-                          : "ATTEMPT ENDED"
-                      : "READY WHEN YOU ARE"}
-                  </span>
-                  <span>
-                    {Math.max(
-                      0,
-                      session.cube.cube.moveHistory.length -
-                        session.initialCubeMoves,
-                    )}{" "}
-                    AGENT MOVES
-                  </span>
-                </div>
-                <div className="cube-timeline" aria-label="Move timeline">
-                  {session.cube.cube.moveHistory
-                    .slice(session.initialCubeMoves)
-                    .map((move, index) => (
-                      <span key={index}>{move}</span>
-                    ))}
-                </div>
-              </>
-            ) : artifactUrl ? (
-              <iframe
-                key={artifactUrl}
-                title="Generated artifact preview"
-                sandbox="allow-scripts"
-                src={artifactUrl}
-              />
-            ) : (
-              <div className="empty-stage">
-                <Artwork mode={mode} />
-                <span className="eyebrow">
-                  {running
-                    ? "YOUR MODEL IS AT WORK"
-                    : "A SPACE FOR YOUR NEXT IDEA"}
-                </span>
-                <h2>
-                  {running
-                    ? "Making something yours."
-                    : "Start with a little curiosity."}
-                </h2>
-                <p>
-                  {running
-                    ? "Follow the agent’s progress below. Your preview will appear here."
-                    : "Choose a model, describe an idea, and see what happens."}
-                </p>
-                <span className={`stage-cross ${running ? "pulse" : ""}`}>
-                  +
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="telemetry">
-            <span className="telemetry-status">
-              <span className={running ? "live-dot pulse" : "live-dot muted"} />
-              {running
-                ? "RUNNING"
-                : (last?.status.toUpperCase() ?? "STANDING BY")}
-            </span>
-            <span>{elapsed}s</span>
-            <span>{last?.modelCalls ?? 0} calls</span>
-            <span>{last?.toolCalls ?? 0} tools</span>
-            <span>
-              {last?.screenshots ?? 0}/{maxScreenshots} reviews
-            </span>
-            <span>{last?.usage?.total.toLocaleString() ?? "—"} tokens</span>
-          </div>
-          <section className="activity">
-            <div className="activity-heading">
-              <span>AGENT ACTIVITY</span>
-              <span>{session ? model : "WAITING FOR YOUR FIRST PROMPT"}</span>
-            </div>
-            {last?.error && (
-              <p role="alert" className="error-message">
-                {last.error}
-              </p>
-            )}
-            {session?.runs
-              .filter((r) => r.response)
-              .map((r) => (
-                <div className="agent-response" key={r.id}>
-                  <span className="response-icon">✳</span>
-                  <p>{r.response}</p>
-                </div>
-              ))}
-            <div className="event-list">
-              {activity.slice(-15).map((event) => (
-                <details key={event.sequence}>
-                  <summary>
-                    <span className="event-time">
-                      {new Date(event.time).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
-                    </span>
-                    {event.type === "assistant.message"
-                      ? String(event.data.text || "Choosing the next action")
-                      : event.type === "tool.started"
-                        ? `Using ${event.data.tool}`
-                        : event.type === "review.captured"
-                          ? "Visual review captured"
-                          : event.type === "run.finished"
-                            ? `Run ${event.data.status}`
-                            : "Tool result received"}
-                    <span>+</span>
-                  </summary>
-                  <pre>{JSON.stringify(event.data, null, 2)}</pre>
-                </details>
-              ))}
-              {!activity.length && (
-                <p className="activity-empty">
-                  The process is part of the picture. You’ll see it here.
-                </p>
-              )}
-            </div>
-          </section>
-        </section>
+        <OutputPanel
+          {...{
+            session,
+            tab,
+            setTab,
+            mode,
+            artifact,
+            setArtifactId,
+            artifactUrl,
+            ended,
+            cleanup,
+            source,
+            running,
+            elapsed,
+            last,
+            maxScreenshots,
+            model,
+            activity,
+            id,
+          }}
+        />
       </div>
     </main>
+  );
+}
+
+export function OutputPanel({
+  session,
+  tab,
+  setTab,
+  mode,
+  artifact,
+  setArtifactId,
+  artifactUrl,
+  ended,
+  cleanup,
+  source,
+  running,
+  elapsed,
+  last,
+  maxScreenshots,
+  model,
+  activity,
+}: {
+  session?: SessionView;
+  tab: string;
+  setTab(value: string): void;
+  mode: ArenaMode;
+  artifact?: SessionView["artifacts"][number];
+  setArtifactId(value: string): void;
+  artifactUrl?: string;
+  ended: boolean;
+  cleanup?: CleanupBrief;
+  source: { url: string; text: string };
+  running: boolean;
+  elapsed: number;
+  last?: SessionView["runs"][number];
+  maxScreenshots: number;
+  model: string;
+  activity: ArenaEvent[];
+  id?: string;
+}) {
+  return (
+    <section className="output">
+      <div className="output-toolbar">
+        <div className="tabs">
+          {["preview", "source", "reviews"].map((name) => (
+            <button
+              key={name}
+              className={tab === name ? "active" : ""}
+              onClick={() => setTab(name)}
+              disabled={name === "source" && mode === "cube"}
+            >
+              {name}
+              {name === "reviews" &&
+                Boolean(session?.reviews.length) &&
+                ` (${session?.reviews.length})`}
+            </button>
+          ))}
+        </div>
+        <div className="artifact-actions">
+          {session && session.artifacts.length > 1 && (
+            <select
+              aria-label="Select artifact"
+              value={artifact?.id}
+              onChange={(e) => setArtifactId(e.target.value)}
+            >
+              {session.artifacts.map((a, i) => (
+                <option value={a.id} key={a.id}>
+                  Version {i + 1}
+                </option>
+              ))}
+            </select>
+          )}
+          {artifactUrl && (
+            <a href={artifactUrl + "?download=1"} download>
+              Download ↓
+            </a>
+          )}
+        </div>
+      </div>
+      <div
+        className={`preview-stage ${artifact || session?.cube ? "has-output" : ""}`}
+      >
+        {ended ? (
+          <div className="end-card">
+            <span className="eyebrow">WORKSPACE CLOSED</span>
+            <h2>All wrapped up.</h2>
+            {cleanup ? (
+              <>
+                <p>{cleanup.filesDeleted} temporary files deleted.</p>
+                <p>
+                  Preview server{" "}
+                  {cleanup.previewStopped ? "stopped" : "could not stop"} · Cube
+                  server {cleanup.serverStopped ? "stopped" : "could not stop"}{" "}
+                  · Browser{" "}
+                  {cleanup.browserClosed ? "closed" : "could not close"}
+                </p>
+                <p>
+                  {cleanup.modelCalls} model calls · {cleanup.toolCalls} tool
+                  calls · {cleanup.tokens?.toLocaleString() ?? "Unavailable"}{" "}
+                  tokens
+                </p>
+                {cleanup.errors.map((e) => (
+                  <p className="error-message" key={e}>
+                    {e}
+                  </p>
+                ))}
+              </>
+            ) : (
+              <p>This session has expired. Create a new one to continue.</p>
+            )}
+          </div>
+        ) : tab === "source" ? (
+          <pre className="source-code">
+            {artifact
+              ? source.url === artifactUrl
+                ? source.text
+                : "Loading source…"
+              : "Your generated source will appear here."}
+          </pre>
+        ) : tab === "reviews" ? (
+          <div className="review-gallery">
+            {session?.reviews.length ? (
+              session.reviews.map((image, i) => (
+                <figure key={image.id}>
+                  <Image
+                    unoptimized
+                    width={1280}
+                    height={720}
+                    src={`data:image/png;base64,${image.data}`}
+                    alt={`Agent visual review ${i + 1}`}
+                  />
+                  <figcaption>
+                    REVIEW {String(i + 1).padStart(2, "0")} / {image.tool}
+                  </figcaption>
+                </figure>
+              ))
+            ) : (
+              <div className="empty-reviews">
+                <h2>A second look.</h2>
+                <p>Agent screenshots and visual reviews will appear here.</p>
+              </div>
+            )}
+          </div>
+        ) : session?.cube ? (
+          <>
+            <CubeFrame session={session} />
+            <div className="cube-stats">
+              <span>
+                {session.cubeStarted
+                  ? session.cube.cube.solved
+                    ? "SOLVED"
+                    : running
+                      ? "AGENT IS SOLVING"
+                      : "ATTEMPT ENDED"
+                  : "READY WHEN YOU ARE"}
+              </span>
+              <span>
+                {Math.max(
+                  0,
+                  session.cube.cube.moveHistory.length -
+                    session.initialCubeMoves,
+                )}{" "}
+                AGENT MOVES
+              </span>
+            </div>
+            <div className="cube-timeline" aria-label="Move timeline">
+              {session.cube.cube.moveHistory
+                .slice(session.initialCubeMoves)
+                .map((move, index) => (
+                  <span key={index}>{move}</span>
+                ))}
+            </div>
+          </>
+        ) : artifactUrl ? (
+          <iframe
+            key={artifactUrl}
+            title="Generated artifact preview"
+            sandbox="allow-scripts"
+            src={artifactUrl}
+          />
+        ) : (
+          <div className="empty-stage">
+            <Artwork mode={mode} />
+            <span className="eyebrow">
+              {running ? "YOUR MODEL IS AT WORK" : "A SPACE FOR YOUR NEXT IDEA"}
+            </span>
+            <h2>
+              {running
+                ? "Making something yours."
+                : "Start with a little curiosity."}
+            </h2>
+            <p>
+              {running
+                ? "Follow the agent’s progress below. Your preview will appear here."
+                : "Choose a model, describe an idea, and see what happens."}
+            </p>
+            <span className={`stage-cross ${running ? "pulse" : ""}`}>+</span>
+          </div>
+        )}
+      </div>
+      <div className="telemetry">
+        <span className="telemetry-status">
+          <span className={running ? "live-dot pulse" : "live-dot muted"} />
+          {running ? "RUNNING" : (last?.status.toUpperCase() ?? "STANDING BY")}
+        </span>
+        <span>{elapsed}s</span>
+        <span>{last?.modelCalls ?? 0} calls</span>
+        <span>{last?.toolCalls ?? 0} tools</span>
+        <span>
+          {last?.screenshots ?? 0}/{maxScreenshots} reviews
+        </span>
+        <span>{last?.usage?.total.toLocaleString() ?? "—"} tokens</span>
+      </div>
+      <section className="activity">
+        <div className="activity-heading">
+          <span>AGENT ACTIVITY</span>
+          <span>{session ? model : "WAITING FOR YOUR FIRST PROMPT"}</span>
+        </div>
+        {last?.error && (
+          <p role="alert" className="error-message">
+            {last.error}
+          </p>
+        )}
+        {session?.runs
+          .filter((r) => r.response)
+          .map((r) => (
+            <div className="agent-response" key={r.id}>
+              <span className="response-icon">✳</span>
+              <p>{r.response}</p>
+            </div>
+          ))}
+        <div className="event-list">
+          {activity.slice(-15).map((event) => (
+            <details key={event.sequence}>
+              <summary>
+                <span className="event-time">
+                  {new Date(event.time).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </span>
+                {event.type === "assistant.message"
+                  ? String(event.data.text || "Choosing the next action")
+                  : event.type === "tool.started"
+                    ? `Using ${event.data.tool}`
+                    : event.type === "review.captured"
+                      ? "Visual review captured"
+                      : event.type === "run.finished"
+                        ? `Run ${event.data.status}`
+                        : "Tool result received"}
+                <span>+</span>
+              </summary>
+              <pre>{JSON.stringify(event.data, null, 2)}</pre>
+            </details>
+          ))}
+          {!activity.length && (
+            <p className="activity-empty">
+              The process is part of the picture. You’ll see it here.
+            </p>
+          )}
+        </div>
+      </section>
+    </section>
   );
 }

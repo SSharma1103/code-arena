@@ -10,6 +10,8 @@ async function Workspace({ params, searchParams }: PageProps<"/arena/[mode]">) {
   return (
     <Arena
       key={mode + String(query.session ?? "new")}
+      initialCompare={query.compare === "1"}
+      sessionB={typeof query.sessionB === "string" ? query.sessionB : undefined}
       initialMode={mode as ArenaMode}
       sessionId={typeof query.session === "string" ? query.session : undefined}
     />

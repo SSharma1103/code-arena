@@ -1,3 +1,4 @@
+import type { ModelAvailabilityService } from './availability.js';
 import { timingSafeEqual } from "node:crypto";
 import {
   createServer,
@@ -29,7 +30,7 @@ async function body(req: IncomingMessage) {
     throw new HttpError(400, "Expected JSON");
   }
 }
-export function arenaServer(service: ArenaService, secret: string) {
+export function arenaServer(service: ArenaService, secret: string, availability?: ModelAvailabilityService) {
   return createServer((req, res) => {
     void (async () => {
       try {
@@ -61,6 +62,15 @@ export function arenaServer(service: ArenaService, secret: string) {
           const models = await service.client.models(AbortSignal.timeout(30_000));
           json(res, models.filter((model) => model.supportsTools !== false));
           return;
+        }
+        if ((url.pathname === '/models/check' || url.pathname === '/sessions') && req.method === 'POST' && availability) {
+          const input = await body(req);
+          if (!input || typeof input.model !== 'string' || !input.model.trim() || input.model.length > 200 || (typeof input.openRouterApiKey !== 'string' || !input.openRouterApiKey.trim() || input.openRouterApiKey.length > 512 || /\s/.test(input.openRouterApiKey.trim()))) throw new HttpError(400, 'Enter a valid model and key.');
+          if (url.pathname === '/models/check' && Object.keys(input).some(k => !['model','openRouterApiKey'].includes(k))) throw new HttpError(400, 'Invalid model check.');
+          const result = await availability.check(owner, input);
+          if (url.pathname === '/models/check') { json(res, result); return; }
+          if (result.status !== 'available') throw new HttpError(409, result.reason ?? 'Model unavailable');
+          json(res, await service.create(owner, input), 201); return;
         }
         if (url.pathname === "/sessions" && req.method === "POST") {
           json(res, await service.create(owner, await body(req)), 201);

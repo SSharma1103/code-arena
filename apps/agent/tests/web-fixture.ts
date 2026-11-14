@@ -78,6 +78,7 @@ const client: ModelClient = {
 const service = new ArenaService(
   client,
   new SessionManager(new FileSessionStore(directory)),
+  {}, undefined, undefined, async () => client,
 );
 const server = arenaServer(service, "code-arena-local-development");
 server.listen(3401, "127.0.0.1", () =>

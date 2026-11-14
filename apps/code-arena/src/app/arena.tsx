@@ -5,7 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import CompareWorkspace from "./compare-workspace";
 import RunToggle from "./run-toggle";
+import { useModelCheck } from "./use-model-check";
 import ModelPicker from "./model-picker";
+import { AuthControl } from "./auth";
 import type {
   ArenaEvent,
   ArenaMode,
@@ -73,6 +75,7 @@ export async function api<T>(
     body: body ? JSON.stringify(body) : undefined,
   });
   const value = await response.json();
+  if (response.status === 401) window.dispatchEvent(new Event("arena-sign-in-required"));
   if (!response.ok) throw new Error(value.error ?? "Request failed");
   return value;
 }
@@ -297,6 +300,7 @@ function ArenaWorkspace({
     [connection, setConnection] = useState("Connecting"),
     [cleanup, setCleanup] = useState<CleanupBrief>(),
     [clock, setClock] = useState(0);
+  const availability = useModelCheck(model, openRouterApiKey);
   const pending = useRef(false);
   const id = session?.id ?? sessionId;
   useEffect(() => {
@@ -413,6 +417,7 @@ function ArenaWorkspace({
   }
   function run() {
     void act(async () => {
+      if (!session && !availability.ready) throw Error("Check model availability before starting.");
       if (!mode || !model.trim() || !prompt.trim())
         throw Error("Choose a model and enter your prompt.");
       let current = session;
@@ -467,58 +472,7 @@ function ArenaWorkspace({
     : Math.round((last?.durationMs ?? 0) / 1000);
   if (!mode)
     return (
-      <main className="landing">
-        <header className="site-header">
-          <Link href="/" className="brand">
-            <span className="brand-icon">✳</span> CODE ARENA
-          </Link>
-          <span className="header-note">
-            AN OPEN PLAYGROUND FOR INTELLIGENCE
-          </span>
-          <span className="edition">
-            VOL. 001 <span className="live-dot" />
-          </span>
-        </header>
-        <div className="intro-line">
-          <span>ONE PROMPT. FOUR POSSIBILITIES.</span>
-          <RunToggle compare={compare} onChange={onCompare} />
-        </div>
-        <div className="quadrants">
-          {(Object.entries(modes) as [ArenaMode, typeof modes.svg][]).map(
-            ([key, item]) => (
-              <Link
-                className={`quadrant mode-${key}`}
-                key={key}
-                href={`/arena/${key}${compare ? "?compare=1" : ""}`}
-              >
-                <div className="quadrant-top">
-                  <span>
-                    {item.number} / {item.label}
-                  </span>
-                  <span className="circle-arrow">
-                    <Arrow />
-                  </span>
-                </div>
-                <Artwork mode={key} />
-                <div className="quadrant-copy">
-                  <h1>
-                    {item.name}
-                    {key === "html" && <small>with HTML</small>}
-                  </h1>
-                  <p>{item.description}</p>
-                </div>
-                <span className="enter-label">
-                  ENTER WORKSPACE <Arrow />
-                </span>
-              </Link>
-            ),
-          )}
-        </div>
-        <footer className="landing-footer">
-          <span>IDEAS IN. POSSIBILITIES OUT.</span>
-          <span>POWERED BY YOUR MODEL OF CHOICE</span>
-        </footer>
-      </main>
+      <Launcher compare={compare} onCompare={onCompare} />
     );
   return (
     <main className={`workspace mode-${mode}`}>
@@ -535,6 +489,7 @@ function ArenaWorkspace({
           onChange={onCompare}
         />
         <div className="header-actions">
+          <AuthControl />
           <span className="connection">
             <span
               className={connection === "Live" ? "live-dot" : "live-dot muted"}
@@ -584,13 +539,11 @@ function ArenaWorkspace({
           <p className="composer-description">{selected?.description}</p>
           <div className="credential-field">
             <label className="field-label" htmlFor="openrouter-key">
-              <span>OpenRouter API key</span> Optional
+              <span>OpenRouter API key</span> Required
             </label>
             {session ? (
               <div className="credential-status" role="status">
-                {session.credentialSource === "user"
-                  ? "Using your key"
-                  : "Using default key"}
+                Using your key
               </div>
             ) : (
               <div className="credential-input">
@@ -599,7 +552,8 @@ function ArenaWorkspace({
                   type={showKey ? "text" : "password"}
                   value={openRouterApiKey}
                   onChange={(event) => setOpenRouterApiKey(event.target.value)}
-                  placeholder="Leave blank to use default"
+                  onBlur={() => void availability.check()}
+                  placeholder="Enter your OpenRouter API key"
                   autoComplete="off"
                   spellCheck={false}
                   autoCapitalize="none"
@@ -622,13 +576,15 @@ function ArenaWorkspace({
             <p className="field-help" id="credential-help">
               {session
                 ? "Fixed for this session. Start a new session to change keys."
-                : "Leave blank to use the default key. Your key is used only for this session."}
+                : "Your key is required and used only for this session."}
             </p>
           </div>
           <label className="field-label" htmlFor="model">
             01 <span>Choose your model</span>
           </label>
           <ModelPicker
+            availability={session ? undefined : availability}
+            onCheck={session ? undefined : value => void availability.check(value)}
             value={model}
             models={models}
             status={modelStatus}
@@ -743,6 +699,7 @@ function ArenaWorkspace({
               onClick={run}
               disabled={
                 busy ||
+                (!session && !availability.ready) ||
                 !model.trim() ||
                 !prompt.trim() ||
                 !Number.isInteger(maxScreenshots) ||
@@ -1056,3 +1013,59 @@ export function OutputPanel({
     </section>
   );
 }
+
+export function Launcher({compare = false, onCompare = () => {}}: {compare?: boolean; onCompare?: (value: boolean) => void}) { return (
+      <main className="landing">
+        <header className="site-header">
+          <Link href="/" className="brand">
+            <span className="brand-icon">✳</span> CODE ARENA
+          </Link>
+          <span className="header-note">
+            AN OPEN PLAYGROUND FOR INTELLIGENCE
+          </span>
+          <span className="edition">
+            VOL. 001 <span className="live-dot" />
+            <AuthControl />
+          </span>
+        </header>
+        <div className="intro-line">
+          <span>ONE PROMPT. FOUR POSSIBILITIES.</span>
+          <RunToggle compare={compare} onChange={onCompare} />
+        </div>
+        <div className="quadrants">
+          {(Object.entries(modes) as [ArenaMode, typeof modes.svg][]).map(
+            ([key, item]) => (
+              <Link
+                className={`quadrant mode-${key}`}
+                key={key}
+                href={`/arena/${key}${compare ? "?compare=1" : ""}`}
+              >
+                <div className="quadrant-top">
+                  <span>
+                    {item.number} / {item.label}
+                  </span>
+                  <span className="circle-arrow">
+                    <Arrow />
+                  </span>
+                </div>
+                <Artwork mode={key} />
+                <div className="quadrant-copy">
+                  <h1>
+                    {item.name}
+                    {key === "html" && <small>with HTML</small>}
+                  </h1>
+                  <p>{item.description}</p>
+                </div>
+                <span className="enter-label">
+                  ENTER WORKSPACE <Arrow />
+                </span>
+              </Link>
+            ),
+          )}
+        </div>
+        <footer className="landing-footer">
+          <span>IDEAS IN. POSSIBILITIES OUT.</span>
+          <span>POWERED BY YOUR MODEL OF CHOICE</span>
+        </footer>
+      </main>
+); }

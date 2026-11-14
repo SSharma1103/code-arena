@@ -1,3 +1,4 @@
+import { RUN_TIMEOUT_MS } from '../limits.js';
 import { randomUUID } from 'node:crypto';
 import type { ModelClient, Turn, AgentTool, Completion, Message, ToolResult } from '../types.js';
 import { SessionManager } from '../session/session.js';
@@ -5,7 +6,7 @@ import { ContextManager } from '../context/context.js';
 import { MemoryManager } from '../memory/memory.js';
 import { Telemetry } from '../middleware/telemetry.js';
 export class Agent {
-  constructor(private client: ModelClient, private sessions: SessionManager, private context: ContextManager, private memory: MemoryManager, private telemetry: Telemetry, private timeoutMs = 120_000, private tools: AgentTool[] = [], private toolPolicies: Record<string,{timeoutMs:number;modelCalls:number;toolCalls:number}> = {}, private observe:(message:Message)=>void=()=>{}) {}
+  constructor(private client: ModelClient, private sessions: SessionManager, private context: ContextManager, private memory: MemoryManager, private telemetry: Telemetry, private timeoutMs = RUN_TIMEOUT_MS, private tools: AgentTool[] = [], private toolPolicies: Record<string,{timeoutMs:number;modelCalls:number;toolCalls:number}> = {}, private observe:(message:Message)=>void=()=>{}) {}
   async run({sessionId,prompt,signal}: {sessionId:string;prompt:string;signal?:AbortSignal}) {
     if (!prompt.trim()) throw new Error('Prompt is required');
     const release = await this.sessions.store.lock(sessionId);
@@ -35,7 +36,7 @@ export class Agent {
           if(!reply.toolCalls?.length){result={...reply,usage:hasUsage?usage:undefined};break;}
           const images:Message[]=[];let awaitingCubeStart=false;
           for(const call of reply.toolCalls){
-            const policy=this.toolPolicies[call.name]; if(policy){modelLimit=Math.max(modelLimit,policy.modelCalls);toolLimit=Math.max(toolLimit,policy.toolCalls);clearTimeout(timer);timer=setTimeout(()=>deadline.abort(),Math.max(0,runStart+policy.timeoutMs-Date.now()));}
+            const policy=this.toolPolicies[call.name]; if(policy){modelLimit=Math.max(modelLimit,policy.modelCalls);toolLimit=Math.max(toolLimit,policy.toolCalls);clearTimeout(timer);timer=setTimeout(()=>deadline.abort(),Math.max(0,runStart+Math.max(this.timeoutMs,policy.timeoutMs)-Date.now()));}
             if(++toolCalls>toolLimit) throw new Error('Tool limit exceeded');
             combined.throwIfAborted();let output:unknown;
             try{output=await this.telemetry.measure('tool',{sessionId,runId,tool:call.name},async()=>{

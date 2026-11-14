@@ -44,13 +44,13 @@ test("session keys isolate provider calls and never enter session responses or s
   t.after(async () => { await service.close(); await rm(dir, { recursive: true, force: true }); });
   const owner = "a".repeat(64);
   const settings = { mode: "svg", model: "test/model", maxScreenshots: 0 };
-  for (const key of [1, "with space", "x".repeat(513)])
+  for (const key of [undefined, "", " ", 1, "with space", "x".repeat(513)])
     await assert.rejects(service.create(owner, { ...settings, openRouterApiKey: key }));
   await assert.rejects(service.create(owner, { ...settings, openRouterApiKey: "bad" }), /Could not verify/);
   const custom = await service.create(owner, { ...settings, openRouterApiKey: " private-key " });
-  const normal = await service.create(owner, settings);
+  const normal = await service.create(owner, { ...settings, openRouterApiKey: "second-key" });
   assert.equal(custom.credentialSource, "user");
-  assert.equal(normal.credentialSource, "server");
+  assert.equal(normal.credentialSource, "user");
   const events: unknown[] = [];
   service.subscribe(owner, custom.id, 0, (event) => events.push(event));
   async function run(id: string) {
@@ -62,8 +62,9 @@ test("session keys isolate provider calls and never enter session responses or s
   await Promise.all([run(custom.id), run(normal.id)]);
   await run(custom.id);
   assert.equal(calls.filter((value) => value === "private-key:generate").length, 2);
-  assert.equal(calls.filter((value) => value === "default:generate").length, 1);
+  assert.equal(calls.filter((value) => value === "second-key:generate").length, 1);
   assert.ok(calls.includes("private-key:models"));
+  assert.ok(!calls.some(value => value.startsWith("default:")));
   assert.ok(!JSON.stringify([service.view(owner, custom.id), events]).includes("private-key"));
   assert.ok(!(await readFile(join(dir, custom.id + ".json"), "utf8")).includes("private-key"));
   assert.throws(() => service.view("b".repeat(64), custom.id), /not found/);

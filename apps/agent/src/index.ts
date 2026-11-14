@@ -1,3 +1,4 @@
+import { ModelAvailabilityService } from './service/availability.js';
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadEnvFile } from "node:process";
@@ -7,15 +8,15 @@ import { ArenaService } from "./service/arena.js";
 import { arenaServer } from "./service/http.js";
 const env = resolve(import.meta.dirname, "../.env");
 if (existsSync(env)) loadEnvFile(env);
-const key = process.env.OPENROUTER_API_KEY;
-if (!key) throw Error("Set OPENROUTER_API_KEY in apps/agent/.env");
+const client = new OpenRouterClient();
 const service = new ArenaService(
-  new OpenRouterClient(key),
+  client,
   new SessionManager(new FileSessionStore()),
 );
 const server = arenaServer(
   service,
   process.env.AGENT_INTERNAL_SECRET ?? "code-arena-local-development",
+  new ModelAvailabilityService(key => new OpenRouterClient(key)),
 );
 server.listen(Number(process.env.AGENT_PORT ?? 3001), "127.0.0.1", () =>
   console.log("Agent API ready on loopback"),

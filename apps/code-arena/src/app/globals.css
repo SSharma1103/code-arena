@@ -1420,3 +1420,26 @@ body {
     height: 420px;
   }
 }
+
+/* Account controls share the arena's palette and typography. */
+.auth-control { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.auth-header-button { background: transparent; color: var(--text); border: 1px solid var(--line); padding: 10px 14px; font-size: 10px; letter-spacing: 1px; white-space: nowrap; }
+.auth-header-button:hover { border-color: var(--accent); color: var(--accent); }
+.auth-name { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); letter-spacing: 0; }
+.auth-dialog { position: fixed; width: min(460px, calc(100vw - 32px)); margin: auto; padding: 44px 36px 28px; background: var(--panel); color: var(--text); border: 1px solid var(--line); box-shadow: 0 24px 100px #0008; }
+.auth-dialog::backdrop { background: #080c0bc9; backdrop-filter: blur(6px); }
+.auth-close { position: absolute; right: 18px; top: 12px; font-size: 26px; padding: 4px; }
+.auth-symbol { font-size: 64px; line-height: 1; color: var(--accent); margin: 36px 0 24px; }
+.auth-dialog h2 { font-size: clamp(28px, 6vw, 36px); font-weight: 400; letter-spacing: -1.4px; margin: 0 0 16px; }
+.auth-dialog p { color: var(--muted); font-size: 13px; line-height: 1.8; margin: 0 0 28px; }
+.auth-google { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; padding: 17px; background: var(--accent); color: var(--bg); border: 1px solid var(--accent); font-size: 13px; }
+.auth-google span { margin-left: auto; }
+.auth-dialog .auth-footnote { text-align: center; font-size: 9px; letter-spacing: 1.6px; margin: 24px 0 0; }
+.auth-dialog .auth-error { color: #e4a08e; font-size: 12px; margin-bottom: 18px; }
+@media (max-width: 767px) {
+  .landing .site-header, .workspace .site-header { height: auto; min-height: 82px; flex-wrap: wrap; padding: 18px 20px; gap: 14px; }
+  .landing .edition { font-size: 0; gap: 10px; }
+  .landing .edition > .live-dot { display: none; }
+  .auth-name { max-width: 95px; }
+  .auth-dialog { padding: 40px 24px 26px; }
+}

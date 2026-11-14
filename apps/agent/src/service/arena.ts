@@ -79,16 +79,16 @@ export class ArenaService {
         "Choose a mode, model, and screenshot limit from 0 to 10.",
       );
     const rawKey = a.openRouterApiKey;
-    if (rawKey !== undefined && (typeof rawKey !== "string" || rawKey.trim().length > 512 || /\s/.test(rawKey.trim())))
-      throw new HttpError(400, "Enter a valid OpenRouter key of up to 512 characters.");
+    if (typeof rawKey !== "string" || !rawKey.trim() || rawKey.trim().length > 512 || /\s/.test(rawKey.trim()))
+      throw new HttpError(400, "Enter your OpenRouter API key (up to 512 characters).");
     if ([...this.entries.values()].filter((e) => !e.closing).length >= 8)
       throw new HttpError(
         429,
         "End an existing session before opening another.",
       );
-    const key = rawKey?.trim();
+    const key = rawKey.trim();
     let provider: ModelClient;
-    try { provider = key ? await this.clientFactory(key) : this.client; }
+    try { provider = await this.clientFactory(key); }
     catch { throw new HttpError(400, "Could not verify your OpenRouter key. Check it and try again."); }
     const client = new SessionClient(provider);
     try {
@@ -103,7 +103,7 @@ export class ArenaService {
       mode: a.mode,
       model: a.model,
       maxScreenshots: a.maxScreenshots,
-      credentialSource: key ? "user" : "server",
+      credentialSource: "user",
       id: session.id,
       status: "ready",
       runs: [],

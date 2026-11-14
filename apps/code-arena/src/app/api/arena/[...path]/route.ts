@@ -1,4 +1,5 @@
-import { randomBytes } from "node:crypto";
+import { sessionService } from "@/lib/auth/server";
+import { SESSION_COOKIE } from "@/lib/auth/session";
 import { NextRequest, NextResponse } from "next/server";
 
 async function proxy(
@@ -8,7 +9,7 @@ async function proxy(
   const { path } = await params;
   const route = "/" + path.join("/");
   if (
-    !/^\/(models|runtime\/three\.(min|module)\.js|sessions(?:\/[a-f0-9-]+(?:\/(?:runs|cancel|events|cube(?:\/start)?|artifacts\/[a-f0-9-]+))?)?)$/.test(
+    !/^\/(models(?:\/check)?|runtime\/three\.(min|module)\.js|sessions(?:\/[a-f0-9-]+(?:\/(?:runs|cancel|events|cube(?:\/start)?|artifacts\/[a-f0-9-]+))?)?)$/.test(
       route,
     )
   )
@@ -21,16 +22,34 @@ async function proxy(
       { error: "Request origin is not allowed" },
       { status: 403 },
     );
-  let owner = request.cookies.get("arena_owner")?.value;
-  const fresh = !owner || !/^[a-f0-9]{64}$/.test(owner);
-  if (fresh) owner = randomBytes(32).toString("hex");
+  let owner = "0".repeat(64);
+  if (!route.startsWith("/runtime/")) {
+    if (!request.cookies.has(SESSION_COOKIE)) return NextResponse.json(
+      { error: "Sign in with Google to use the arena." },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+    try {
+      const service = sessionService();
+      const user = await service.read(request.cookies.get(SESSION_COOKIE)?.value);
+      if (!user) return NextResponse.json(
+        { error: "Sign in with Google to use the arena." },
+        { status: 401, headers: { "Cache-Control": "no-store" } },
+      );
+      owner = service.owner(user);
+    } catch {
+      return NextResponse.json(
+        { error: "Authentication is unavailable. Check Firebase server configuration." },
+        { status: 503 },
+      );
+    }
+  }
   const base = process.env.AGENT_API_URL ?? "http://127.0.0.1:3001";
   const url = new URL(route, base);
   url.search = request.nextUrl.search;
   const headers: Record<string, string> = {
     "x-agent-secret":
       process.env.AGENT_INTERNAL_SECRET ?? "code-arena-local-development",
-    "x-arena-owner": owner!,
+    "x-arena-owner": owner,
   };
   if (request.headers.get("last-event-id"))
     headers["last-event-id"] = request.headers.get("last-event-id")!;
@@ -75,19 +94,6 @@ async function proxy(
       status: upstream.status,
       headers: forwarded,
     });
-    if (
-      fresh &&
-      route === "/sessions" &&
-      request.method === "POST" &&
-      upstream.ok
-    )
-      response.cookies.set("arena_owner", owner!, {
-        httpOnly: true,
-        sameSite: "strict",
-        secure: request.nextUrl.protocol === "https:",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
-      });
     return response;
   } catch {
     return NextResponse.json(

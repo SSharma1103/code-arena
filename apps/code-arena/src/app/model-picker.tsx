@@ -12,6 +12,8 @@ export default function ModelPicker({
   disabled,
   onChange,
   onRetry,
+  onCheck,
+  availability,
 }: {
   id?: string;
   value: string;
@@ -21,6 +23,8 @@ export default function ModelPicker({
   disabled: boolean;
   onChange(value: string): void;
   onRetry(): void;
+  onCheck?(model: string): void;
+  availability?: { checking?: boolean; ready?: boolean; result?: { latencyMs: number; reason?: string } };
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -36,6 +40,7 @@ export default function ModelPicker({
 
   function choose(model: ModelOption) {
     onChange(model.id);
+    onCheck?.(model.id);
     setOpen(false);
     setActive(-1);
   }
@@ -67,6 +72,7 @@ export default function ModelPicker({
             disabled={disabled}
             maxLength={200}
             onFocus={() => setOpen(true)}
+            onBlur={() => onCheck?.(value)}
             onChange={(event) => {
               onChange(event.target.value);
               setActive(-1);
@@ -89,6 +95,8 @@ export default function ModelPicker({
                 document
                   .getElementById(`model-option-${next}`)
                   ?.scrollIntoView({ block: "nearest" });
+              } else if (event.key === "Enter" && !activeOption) {
+                event.preventDefault(); setOpen(false); setActive(-1); onCheck?.(value);
               } else if (event.key === "Enter" && expanded && activeOption) {
                 event.preventDefault();
                 choose(activeOption);
@@ -186,6 +194,7 @@ export default function ModelPicker({
           </div>
         )}
       </div>
+      {availability && <p className="field-help" role="status">{availability.checking ? "Checking availability..." : availability.ready ? "Available (" + availability.result?.latencyMs + " ms)" : availability.result?.reason || "Select a model to check availability."} {!availability.checking && !availability.ready && value.trim() && <button type="button" className="model-retry" onClick={() => onCheck?.(value)}>Retry check</button>}<br />Live checks may use OpenRouter credits.</p>}
       <p id={`${id}-help`} className="field-help model-help" role="status">
         {status === "loading" ? (
           "Loading popular models from OpenRouter…"

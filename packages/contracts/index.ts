@@ -12,7 +12,7 @@ export type SessionSettings = {
   model: string;
   maxScreenshots: number;
 };
-export type CreateSession = SessionSettings & { openRouterApiKey?: string };
+export type CreateSession = SessionSettings & { openRouterApiKey: string };
 export type CubeState = {
   gameId: string;
   cube: {
@@ -66,3 +66,6 @@ export type ArenaEvent = {
   time: string;
   data: Record<string, unknown>;
 };
+
+export type ModelCheck = { model: string; openRouterApiKey: string };
+export type ModelCheckResult = { model: string; status: "available" | "unavailable"; checkedAt: string; latencyMs: number; reason?: string };

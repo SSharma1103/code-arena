@@ -44,7 +44,7 @@ test('summary failure leaves memory unchanged',async t=>{
   const saved=await f.sessions.store.load(s.id);assert.equal(saved.covered,0);assert.equal(saved.summary,'');assert.equal(saved.turns.length,9);
 });
 test('metadata fallback and output budget',async t=>{
-  const f=await fixture(t);const b=await f.context.budget('missing',new AbortController().signal);assert.equal(b.window,273000);assert.equal(b.output,8192);assert.ok(f.events.some(e=>e.event==='context.fallback'));
+  const f=await fixture(t);const b=await f.context.budget('missing',new AbortController().signal);assert.equal(b.window,32768);assert.equal(b.output,8192);assert.ok(f.events.some(e=>e.event==='context.fallback'));
 });
 test('rejects oversized input, cancellation, and concurrent locks',async t=>{
   const f=await fixture(t);const s=await f.sessions.create('test/model');

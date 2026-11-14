@@ -1,3 +1,4 @@
+import { MAX_ARTIFACT_BYTES, MAX_SESSION_ARTIFACT_BYTES } from '../limits.js';
 import { mkdtemp, writeFile, rm, access, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -7,7 +8,7 @@ import type { AgentTool, ToolContext } from '../types.js';
 import { runtimeAsset } from './runtime-assets.js';
 
 export class write_file implements AgentTool {
-  readonly definition = {name:'write_file', description:'Write an SVG or complete HTML/Three.js page. Returns a temporary localhost preview URL. For 3js include browser imports in a complete HTML page.', parameters:{type:'object', properties:{format:{type:'string',enum:['svg','html','3js']},content:{type:'string'}},required:['format','content'],additionalProperties:false}};
+  readonly definition = {name:'write_file', description:'Write an SVG or complete HTML/Three.js page (up to 8 MiB per file, 64 MiB total per session). Returns a temporary localhost preview URL. For 3js include browser imports in a complete HTML page.', parameters:{type:'object', properties:{format:{type:'string',enum:['svg','html','3js']},content:{type:'string'}},required:['format','content'],additionalProperties:false}};
   private directory?: string;
   private sessionId?: string;
   private server?: Server;
@@ -27,7 +28,7 @@ export class write_file implements AgentTool {
     const {format,content}=args as Record<string,unknown>;
     if(!['svg','html','3js'].includes(String(format)) || typeof content!=='string' || !content.trim() || Object.keys(args).some(k=>!['format','content'].includes(k))) throw new Error('Expected format svg/html/3js and nonempty content');
     const size=Buffer.byteLength(content);
-    if(size>2*1024*1024 || this.bytes+size>20*1024*1024) throw new Error('Artifact size limit exceeded');
+    if(size>MAX_ARTIFACT_BYTES || this.bytes+size>MAX_SESSION_ARTIFACT_BYTES) throw new Error('Artifact size limit exceeded (8 MiB per file, 64 MiB per session)');
     if(this.sessionId && this.sessionId!==context.sessionId) throw new Error('Artifact session mismatch');
     this.sessionId=context.sessionId;
     this.directory ??= await realpath(await mkdtemp(join(tmpdir(),'code-arena-')));
@@ -64,6 +65,7 @@ export class write_file implements AgentTool {
     this.closed=true;const errors:string[]=[];let stopped=true;let deleted=0;
     if(this.server){try{await new Promise<void>((resolve,reject)=>{this.server!.close(e=>e?reject(e):resolve());this.server!.closeAllConnections();});}catch{stopped=false;errors.push('Preview server failed to stop');}}
     if(this.directory){try{await rm(this.directory,{recursive:true,force:true});await access(this.directory).then(()=>{throw new Error('Still exists');},e=>{if(e.code!=='ENOENT')throw e;});deleted=this.files.size;}catch{errors.push('Temporary artifact deletion failed');}}
+    this.files.clear();this.bytes=0;
     return {filesDeleted:deleted,previewStopped:stopped,errors};
   }
 }

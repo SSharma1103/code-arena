@@ -5,7 +5,7 @@ rolling-summary memory, file sessions, and JSON telemetry on stderr.
 
 ## Testing CLI
 
-Copy `.env.example` to `.env` in this directory and set `OPENROUTER_API_KEY`.
+Copy `.env.example` to `.env` in this directory for service settings. The web app requires each user to supply their own OpenRouter key. The CLI prompts for a key with hidden input.
 From the repository root:
 
 ```sh
@@ -25,17 +25,21 @@ its working summary. Run locks protect writes; CLI leases prevent two CLI
 processes opening the same session. After an unclean process termination, verify
 the recorded process ID is no longer running before removing its `.lock` files.
 
-The context layer reads model limits from OpenRouter and falls back to 273,000
-tokens. It reserves up to 8,192 output tokens, triggering compaction at 80% of
-the remaining input budget. UTF-8 bytes plus message overhead provide an
+The context layer uses the smaller of OpenRouter's model and top-provider context
+windows. Output is limited to the advertised completion maximum, one quarter of
+the context window, and the application's 128,000-token ceiling. Five percent of
+the window is reserved for framing and estimation differences. Unknown models
+use a conservative 32,768-token context and 8,192-token output fallback.
+Compaction starts at 80% of the remaining input budget. UTF-8 bytes plus message overhead provide an
 intentionally conservative estimate, not a model-specific tokenizer. This can
 compact earlier than necessary. Actual provider usage is emitted separately.
-Metadata is cached for the process lifetime.
+Metadata refreshes after five minutes; failed lookups are not cached.
 
 Compaction uses the session model and is a billable model call. It retains the
 latest four completed turns when they fit; larger histories are summarized in
-bounded chunks. Failed compaction preserves the previous stored memory. There
-are no automatic retries. Default run timeout is 120 seconds (configurable in
+bounded chunks with up to 8,192 summary tokens. JSON escaping is included in
+chunk accounting. Failed compaction preserves the previous stored memory. There
+are no automatic retries. Default run timeout is 15 minutes (configurable in
 the Agent constructor); cancellation is supported through AbortSignal.
 
 ## Development
@@ -60,7 +64,7 @@ Tool-capable models receive tool definitions and can correct rejected calls.
 Runs stop after eight model calls or twelve tool calls, with no automatic retries.
 
 Artifacts use generated filenames in a private OS temporary directory, limited
-to 2 MiB per file and 20 MiB per CLI session. The CLI prints localhost preview URLs
+to 8 MiB per file and 64 MiB per session (web and CLI). The CLI prints localhost preview URLs
 and per-response timing, usage, model calls, and tool calls. Open a URL manually.
 Previews use a sandboxed iframe; generated code executes only in the browser.
 External HTTPS imports/assets are allowed; previews have no application APIs.
@@ -159,3 +163,23 @@ When a solving turn ends without solving, Cube Studio shows **Attempt ended**
 not leave a stopped agent labeled as running. Existing games created with the
 old back-face rotation may contain invalid states; restart the CLI and create a
 new cube after updating this patch.
+
+## Model limit references
+
+Checked November 14, 2026 against OpenRouter's live model catalogue:
+
+| Model | Context tokens | Maximum completion tokens |
+| --- | ---: | ---: |
+| [GPT-6 Astra](https://openrouter.ai/openai/gpt-6-astra) | 1,050,000 | 128,000 |
+| [Claude Fable 5.2](https://openrouter.ai/anthropic/claude-fable-5.2-20261109) | 1,000,000 | 128,000 |
+
+These are reference snapshots; runtime budgets come from the selected model's live
+metadata, with the application ceilings above. Reasoning shares the completion
+budget, so visible code may be shorter. A length-limited completion fails instead
+of executing incomplete tool arguments or reporting a truncated artifact as complete.
+See the [model catalogue API](https://openrouter.ai/docs/api/api-reference/models/get-models),
+[completion parameters](https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request),
+and [reasoning documentation](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens).
+Artifact byte limits and the 15-minute deadline are application resource policies,
+not provider guarantees. Tests mock inference and write real large temporary files;
+they do not spend OpenRouter credits or establish real-model quality or latency.

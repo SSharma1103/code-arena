@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "./auth";
 
 export const metadata: Metadata = {
   title: "Code Arena",
@@ -12,7 +13,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className="h-full antialiased"
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col"><AuthProvider>{children}</AuthProvider></body>
     </html>
   );
 }

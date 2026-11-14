@@ -13,7 +13,8 @@ Requires Node.js 22 or newer and npm.
 ```sh
 npm ci
 npx playwright install chromium
-# Copy apps/agent/.env.example to apps/agent/.env and set OPENROUTER_API_KEY.
+# Copy apps/agent/.env.example to apps/agent/.env.
+# Configure Firebase in apps/code-arena/.env.local (see apps/code-arena/README.md).
 npm run dev
 ```
 
@@ -58,11 +59,11 @@ Agent restarts expire web sessions and previews. This release supports one model
 per session on a local machine.
 
 Next.js forwards `/api/arena/*` through server-side Route Handlers. The agent API
-checks an internal secret and opaque browser owner. Set matching
+checks an internal secret and an owner derived from the verified Firebase user.
+Google sign-in is required for session APIs and previews; the launcher is public. Set matching
 `AGENT_INTERNAL_SECRET` values in `apps/agent/.env` and
 `apps/code-arena/.env.local` to override the shared local-development default.
-`AGENT_API_URL` overrides the web server's default agent URL. The default OpenRouter
-key stays on the agent server; optional user keys are scoped to one session.
+`AGENT_API_URL` overrides the web server's default agent URL. Users must enter their own OpenRouter key for model checks and sessions.
 Previews are sandboxed and network-restricted;
 Three.js 0.128.0 is served locally at `/runtime/three.module.js`.
 The CLI remains available with `npm run cli --workspace=agent`.
@@ -89,8 +90,7 @@ checks the live catalogue, search, keyboard selection, manual IDs, retry handlin
 and mobile layout. It fetches model metadata and does not run generation calls.
 ## Session OpenRouter keys
 
-The optional key field above the model picker overrides the server key only for
-that session. Leave it blank to keep using `OPENROUTER_API_KEY`. Custom keys are
+The required key field above the model picker supplies your own key for model checks and that session. Keys are
 verified before session creation, held only in agent memory, and released when
 the session ends, expires, or the agent stops. They cannot be changed mid-session;
 start a new session to switch keys. Refreshing an active session needs no re-entry.
@@ -114,7 +114,7 @@ Real environment files, dependencies, build output, and local session data are
 ignored. Both `.env.example` files are included. GitHub Actions runs typecheck,
 lint, agent tests, and builds without provider credentials.
 
-The current app is intended for local use. Its development secret and owner
-cookies are not a public hosting authentication system. Configure a private
-deployment and real access controls before exposing the server-funded API online.
+Firebase setup and Google sign-in instructions are in [the frontend README](apps/code-arena/README.md).
+Keep the agent on a private loopback connection and replace the development
+internal secret when deploying.
 No project license has been selected; choose one before offering reuse rights.

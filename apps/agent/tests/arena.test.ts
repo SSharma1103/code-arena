@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
+import { ModelAvailabilityService } from "../src/service/availability.js";
 import { ArenaService } from "../src/service/arena.js";
 import { arenaServer } from "../src/service/http.js";
 import { SessionManager, FileSessionStore } from "../src/session/session.js";
@@ -53,7 +54,7 @@ async function fixture(
 ) {
   const dir = await mkdtemp(join(tmpdir(), "arena-web-"));
   const sessions = new SessionManager(new FileSessionStore(dir));
-  const service = new ArenaService(client, sessions, {}, now, 1000);
+  const service = new ArenaService(client, sessions, {}, now, 1000, async () => client);
   t.after(async () => {
     await service.close();
     await rm(dir, { recursive: true, force: true });
@@ -73,12 +74,14 @@ test("web sessions enforce inputs, ownership, artifact access, follow-ups and cl
   for (const maxScreenshots of [-1, 11, 1.5])
     await assert.rejects(
       service.create(owner, {
+    openRouterApiKey: "test-key",
         mode: "svg",
         model: "test/model",
         maxScreenshots,
       }),
     );
   const view = await service.create(owner, {
+    openRouterApiKey: "test-key",
     mode: "svg",
     model: "test/model",
     maxScreenshots: 0,
@@ -201,6 +204,7 @@ test("cancellation retains outcomes and inactivity expires resources", async (t)
   };
   const { service } = await fixture(t, client, () => now);
   const s = await service.create(owner, {
+    openRouterApiKey: "test-key",
     mode: "svg",
     model: "test/model",
     maxScreenshots: 3,
@@ -219,7 +223,7 @@ test("cancellation retains outcomes and inactivity expires resources", async (t)
 });
 test("HTTP boundary authenticates requests and serves sandboxed original/source previews", async (t) => {
   const { service } = await fixture(t);
-  const server = arenaServer(service, "secret");
+  const server = arenaServer(service, "secret", new ModelAvailabilityService(() => { throw Error("Unexpected probe"); }));
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   t.after(async () => {
     server.closeAllConnections();
@@ -228,7 +232,14 @@ test("HTTP boundary authenticates requests and serves sandboxed original/source 
   const base = `http://127.0.0.1:${(server.address() as any).port}`;
   const headers = { "x-agent-secret": "secret", "x-arena-owner": owner };
   assert.equal((await fetch(base + "/models")).status, 401);
+  for (const path of ['/models/check', '/sessions']) {
+    for (const key of [undefined, '', ' ']) {
+      const response = await fetch(base + path, {method:'POST',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({mode:'svg',model:'test/model',maxScreenshots:0,openRouterApiKey:key})});
+      assert.equal(response.status,400);
+    }
+  }
   const s = await service.create(owner, {
+    openRouterApiKey: "test-key",
     mode: "svg",
     model: "test/model",
     maxScreenshots: 0,

@@ -5,16 +5,23 @@ import { loadEnvFile } from 'node:process';
 import { resolve } from 'node:path';
 import { render } from 'ink';
 import { UI } from './ui.js';
+import { createInterface } from 'node:readline/promises';
+import { Writable } from 'node:stream';
 import { OpenRouterClient } from '../client/openrouter.js';
 import { SessionManager, FileSessionStore } from '../session/session.js';
 import { Telemetry } from '../middleware/telemetry.js';
 const env = resolve(import.meta.dirname,'../../.env'); if(existsSync(env))loadEnvFile(env);
-if(!process.env.OPENROUTER_API_KEY?.trim()){process.stderr.write('OPENROUTER_API_KEY is required. Set it in apps/agent/.env.\n');process.exit(1);}
 if(!process.stdin.isTTY){process.stderr.write('The testing CLI requires an interactive terminal.\n');process.exit(1);}
 let statusListener = (_status:string) => {};
 const started=Date.now();const counts={completed:0,failed:0,modelCalls:0,toolCalls:0,input:0,output:0,total:0,usageCalls:0,missingUsageCalls:0};
 const telemetry = new Telemetry(event=>{if(event.event==='run.completed')counts.completed++;if(event.event==='run.failed')counts.failed++;if(event.event==='generation.started'||event.event==='summary.started')counts.modelCalls++;if(event.event==='tool.started')counts.toolCalls++;if(event.event==='generation.usage'||event.event==='summary.usage'){const u=event.usage as {input:number;output:number;total:number}|undefined;if(u){counts.input+=u.input;counts.output+=u.output;counts.total+=u.total;counts.usageCalls++;}else counts.missingUsageCalls++;}process.stderr.write(JSON.stringify(event)+'\n');if(event.event==='summary.started')statusListener('compacting');if(event.event==='generation.started')statusListener('running');});
-const client = new OpenRouterClient(process.env.OPENROUTER_API_KEY);
+process.stderr.write('Enter your OpenRouter API key (hidden): ');
+const prompt = createInterface({ input: process.stdin, output: new Writable({ write(_chunk, _encoding, done) { done(); } }), terminal: true });
+let apiKey: string;
+try { apiKey = (await prompt.question('')).trim(); }
+finally { prompt.close(); process.stderr.write('\n'); }
+if (!apiKey) { process.stderr.write('An OpenRouter API key is required.\n'); process.exit(1); }
+const client = new OpenRouterClient(apiKey);
 const sessions = new SessionManager(new FileSessionStore());
 const {agent,artifacts,cube}=createRuntime({client,sessions,telemetry,changed:()=>statusListener(`live cube: ${cube.url ?? ''}`)});
 const args=process.argv.slice(2); const resume=args[0]==='--session'?args[1]:undefined;

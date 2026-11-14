@@ -8,13 +8,16 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test:browser": "node --test tests/*.browser.mjs"
+    "test:browser": "node --test tests/*.browser.mjs",
+    "test:auth": "node --experimental-strip-types --test tests/auth.test.mjs"
   },
   "dependencies": {
+    "@code-arena/contracts": "*",
+    "firebase": "12.4.0",
+    "firebase-admin": "13.5.0",
     "next": "16.4.5",
     "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "@code-arena/contracts": "*"
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",

@@ -1,3 +1,4 @@
+import { RUN_TIMEOUT_MS } from "../limits.js";
 import { chromium, type BrowserType } from "playwright";
 import type { ArenaMode, CubeState } from "@code-arena/contracts";
 import type { AgentTool, Message, ModelClient, ToolResult } from "../types.js";
@@ -116,7 +117,7 @@ export function createRuntime(options: RuntimeOptions) {
     context,
     memory,
     telemetry,
-    120_000,
+    RUN_TIMEOUT_MS,
     tools,
     policies,
     options.observe,

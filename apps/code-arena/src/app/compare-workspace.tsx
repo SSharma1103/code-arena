@@ -1,4 +1,6 @@
 ﻿"use client";
+
+import { AuthControl } from "./auth";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type {
@@ -8,6 +10,7 @@ import type {
   SessionView,
 } from "@code-arena/contracts";
 import { api, modes, OutputPanel } from "./arena";
+import { useModelCheck } from "./use-model-check";
 import ModelPicker from "./model-picker";
 import RunToggle from "./run-toggle";
 
@@ -260,6 +263,9 @@ function ComparisonSession({
     sessionIds.some(Boolean) ? "" : modes[mode].prompt,
   );
   const [key, setKey] = useState("");
+  const checkA = useModelCheck(selected[0], key);
+  const checkB = useModelCheck(selected[1], key);
+  const checks = [checkA, checkB];
   const [showKey, setShowKey] = useState(false);
   const [maxScreenshots, setMaxScreenshots] = useState(3);
   const [busy, setBusy] = useState(false);
@@ -313,6 +319,7 @@ function ComparisonSession({
   }
   async function submit(indices = [0, 1], retry = false) {
     await perform(async () => {
+      if (indices.some(i => !lanes[i].id && !checks[i].ready)) return;
       const text = retry
         ? lastPrompt.current ||
           lanes[indices[0]].session?.runs.at(-1)?.prompt ||
@@ -412,6 +419,7 @@ function ComparisonSession({
           }}
         />
         <div className="header-actions">
+          <AuthControl />
           {locked && (
             <button
               className="text-button"
@@ -438,13 +446,11 @@ function ComparisonSession({
           </p>
           <div className="credential-field">
             <label className="field-label" htmlFor="comparison-key">
-              <span>OpenRouter API key</span> Optional
+              <span>OpenRouter API key</span> Required
             </label>
             {lanes.every((l) => l.id) ? (
               <div className="credential-status">
-                {settings?.credentialSource === "user"
-                  ? "Using your key"
-                  : "Using default key"}
+                Using your key
               </div>
             ) : (
               <div className="credential-input">
@@ -456,7 +462,8 @@ function ComparisonSession({
                   value={key}
                   disabled={busy}
                   onChange={(e) => setKey(e.target.value)}
-                  placeholder="Leave blank to use default"
+                  onBlur={() => { void checkA.check(); void checkB.check(); }}
+                  placeholder="Enter your OpenRouter API key"
                 />
                 <button
                   className="text-button"
@@ -482,6 +489,8 @@ function ComparisonSession({
                   <span>Model {i === 0 ? "A" : "B"}</span>
                 </label>
                 <ModelPicker
+                  availability={lane.id ? undefined : checks[i]}
+                  onCheck={lane.id ? undefined : value => void checks[i].check(value)}
                   id={`comparison-model-${i}`}
                   value={lane.session?.model ?? selected[i]}
                   models={models}
@@ -577,6 +586,7 @@ function ComparisonSession({
               disabled={
                 busy ||
                 solved ||
+                lanes.some((lane, i) => !lane.id && !checks[i].ready) ||
                 (!cubeReady &&
                   (!prompt.trim() ||
                     lanes.some((l, i) => !l.id && !selected[i].trim()))) ||

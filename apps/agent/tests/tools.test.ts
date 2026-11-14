@@ -21,8 +21,9 @@ test('artifact formats, isolated previews, limits and confirmed deletion',async 
   }
   await assert.rejects(tool.execute({format:'html',content:'x'}, {...context,sessionId:'other'}),/mismatch/);
   await assert.rejects(tool.execute({format:'js',content:'x'},context));
-  await assert.rejects(tool.execute({format:'html',content:'x'.repeat(2*1024*1024+1)},context),/limit/);
+  await assert.rejects(tool.execute({format:'html',content:'x'.repeat(8*1024*1024+1)},context),/limit/);
   const files=tool.artifacts;const result=await tool.close();assert.deepEqual(result,{filesDeleted:3,previewStopped:true,errors:[]});
+  assert.equal(tool.artifacts.length,0);
   for(const file of files)await assert.rejects(access(file.path));
   await assert.rejects(fetch(files[0]!.url));await assert.rejects(tool.execute({format:'html',content:'x'},context),/closed/);
 });
@@ -62,3 +63,17 @@ test('launching the cube returns immediately and waits for the Start button',asy
  const session=await sessions.create('test');assert.match((await agent.run({sessionId:session.id,prompt:'open cube'})).text,/Press Start/);assert.equal(calls,1);
  assert.equal((await sessions.store.load(session.id)).turns[0]?.messages?.find(m=>m.role==='tool')?.toolCallId,'launch');
 });
+
+ test('large UTF-8 artifacts support the new file and session ceilings',async t=>{
+ const tool=new write_file();t.after(()=>tool.close());
+ const context={sessionId:'large-files',runId:'run',signal:new AbortController().signal};
+ const content='\u00e9'.repeat(4*1024*1024); // 8 MiB in UTF-8, beyond the old 2 MiB limit.
+ assert.equal(Buffer.byteLength(content),8*1024*1024);
+ for(let i=0;i<8;i++) {
+ const artifact=await tool.execute({format:'html',content},context);
+ assert.equal((await tool.readPreviewFile(artifact.entryFile,context)).content,content);
+ }
+ assert.equal(tool.artifacts.length,8);
+ await assert.rejects(tool.execute({format:'html',content:'x'},context),/64 MiB/);
+ assert.equal(tool.artifacts.length,8);
+ });

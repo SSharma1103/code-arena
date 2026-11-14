@@ -14,10 +14,12 @@ test("comparison starts both outputs, isolates failures, restores and fits mobil
     const sessions = new Map();
     const started = [];
     let count = 0;
+    await page.route("**/api/auth/session", route => route.fulfill({ json: { user: { uid: "test", name: "Tester", email: null } } }));
     await page.route("**/api/arena/**", async (route) => {
       const req = route.request(),
         url = new URL(req.url()),
         path = url.pathname.replace("/api/arena/", "");
+      if (path === "models/check") return route.fulfill({json:{model:req.postDataJSON().model,status:"available",checkedAt:new Date().toISOString(),latencyMs:10}});
       if (path === "models")
         return route.fulfill({
           json: [
@@ -83,9 +85,11 @@ test("comparison starts both outputs, isolates failures, restores and fits mobil
     await page.locator("a.quadrant.mode-svg").click();
     await page.locator(".comparison-lane").first().waitFor();
     assert.equal(await page.locator(".comparison-lane").count(), 2);
+    await page.locator("#comparison-key").fill("test-user-key");
     await page.locator("#comparison-model-0").fill("test/a");
     await page.locator("#comparison-model-1").fill("test/b");
     await page.locator("#comparison-prompt").fill("Draw the same flower");
+    await page.locator("#comparison-prompt").focus();
     await page.getByRole("button", { name: "Run comparison" }).click();
     await page.waitForFunction(() => location.search.includes("sessionB="));
     await page.waitForTimeout(1200);

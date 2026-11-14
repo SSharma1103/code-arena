@@ -1,0 +1,10 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { loadEnvFile } from "node:process";
+import { ExportStore } from "./store.js";
+import { ExportWorker } from "./worker.js";
+const env = resolve(import.meta.dirname, "../../.env");
+if (existsSync(env)) loadEnvFile(env);
+const worker = new ExportWorker(new ExportStore());
+for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => worker.stop());
+await worker.run();

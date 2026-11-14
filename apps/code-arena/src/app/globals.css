@@ -1443,3 +1443,18 @@ body {
   .auth-name { max-width: 95px; }
   .auth-dialog { padding: 40px 24px 26px; }
 }
+.video-export { position: relative; font-size: 12px; }
+.video-export summary { cursor: pointer; padding: 8px; }
+.video-export-controls { position: absolute; z-index: 30; right: 0; top: 100%; width: min(320px, 85vw); padding: 18px; border: 1px solid #647875; border-radius: 12px; background: #172221; color: #f6f2e8; box-shadow: 0 18px 50px #0008; display: grid; gap: 12px; }
+.video-export-controls p { margin: 0 0 8px; line-height: 1.5; }
+.video-export-controls label { display: flex; justify-content: space-between; align-items: center; }
+.video-export-controls button, .video-export-controls select { border: 1px solid #819d94; padding: 8px 12px; border-radius: 6px; background: #2a3e37; color: #fff; cursor: pointer; }
+.video-export-controls button:disabled { opacity: .5; cursor: wait; }
+.video-export-controls video { display: block; width: 100%; max-height: 50vh; aspect-ratio: 9 / 16; background: #111; }
+.video-export-controls progress { width: 100%; accent-color: #b9e3aa; }
+.video-export-controls [role="alert"] { color: #ffb8a5; }
+.video-export-controls { max-height: 80dvh; overflow-y: auto; }
+.video-export-close { justify-self: end; }
+@media (max-width: 600px) {
+  .video-export-controls { position: fixed; top: 50%; right: 16px; transform: translateY(-50%); width: min(320px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); }
+}

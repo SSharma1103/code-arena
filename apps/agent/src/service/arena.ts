@@ -17,14 +17,8 @@ import {
   type RuntimeOptions,
 } from "./runtime.js";
 
-export class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+import { HttpError } from "./errors.js";
+export { HttpError } from "./errors.js";
 type Entry = {
   client: SessionClient;
   owner: string;

@@ -5,7 +5,7 @@ import { chromium } from 'playwright';
 const base = process.env.ARENA_TEST_URL ?? 'http://localhost:3000';
 
 test('auth boundary rejects anonymous sessions and cross-origin writes', async () => {
-  for (const path of ['models', 'models/check', 'sessions', 'sessions/aaaaaaaa/runs', 'sessions/aaaaaaaa/events', 'sessions/aaaaaaaa/artifacts/bbbbbbbb']) {
+  for (const path of ['models', 'models/check', 'sessions', 'sessions/aaaaaaaa/runs', 'sessions/aaaaaaaa/events', 'sessions/aaaaaaaa/artifacts/bbbbbbbb', 'sessions/aaaaaaaa/exports', 'exports/aaaaaaaa', 'exports/aaaaaaaa/video', 'exports/aaaaaaaa/retry']) {
     const response = await fetch(`${base}/api/arena/${path}`);
     assert.equal(response.status, 401, path);
   }

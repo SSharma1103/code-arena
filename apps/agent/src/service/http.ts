@@ -8,6 +8,10 @@ import {
 import { ArenaService, HttpError } from "./arena.js";
 import { runtimeAsset } from "../tools/runtime-assets.js";
 import { cubeDocument } from "../tools/cube-renderer.js";
+import { ExportStore } from "../video/store.js";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { join } from "node:path";
 const previewPolicy =
   "sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src data:; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'";
 function json(res: ServerResponse, value: unknown, status = 200) {
@@ -30,7 +34,7 @@ async function body(req: IncomingMessage) {
     throw new HttpError(400, "Expected JSON");
   }
 }
-export function arenaServer(service: ArenaService, secret: string, availability?: ModelAvailabilityService) {
+export function arenaServer(service: ArenaService, secret: string, availability?: ModelAvailabilityService, exports = new ExportStore()) {
   return createServer((req, res) => {
     void (async () => {
       try {
@@ -48,6 +52,31 @@ export function arenaServer(service: ArenaService, secret: string, availability?
         const owner = String(req.headers["x-arena-owner"] ?? "");
         if (!/^[a-f0-9]{64}$/.test(owner))
           throw new HttpError(401, "Missing session owner");
+        const exported = url.pathname.match(/^\/exports\/([a-f0-9-]+)(?:\/(video|retry))?$/);
+        if (exported) {
+          const job = await exports.owned(owner, exported[1]!);
+          if (!exported[2] && req.method === "GET") { json(res, exports.view(job)); return; }
+          if (exported[2] === "retry" && req.method === "POST") {
+            if (job.status !== "failed") throw new HttpError(409, "Only failed exports can be retried");
+            json(res, await exports.enqueue(owner, job.sessionId, job.outputId, job.source, job.settings.duration), 202); return;
+          }
+          if (exported[2] === "video" && req.method === "GET") {
+            if (job.status !== "completed") throw new HttpError(409, "Video is not ready");
+            const path = join(exports.path(job.id), "video.mp4"), size = (await stat(path)).size;
+            const range = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/);
+            const start = range ? Number(range[1]) : 0, end = range?.[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+            if (req.headers.range && (!range || start > end || start >= size)) {
+              res.writeHead(416, { "Content-Range": `bytes */${size}` }); res.end(); return;
+            }
+            res.writeHead(range ? 206 : 200, { "Content-Type": "video/mp4", "Cache-Control": "private, no-store", "Accept-Ranges": "bytes",
+              "Content-Length": end - start + 1, "X-Content-Type-Options": "nosniff",
+              ...(range ? { "Content-Range": `bytes ${start}-${end}/${size}` } : {}),
+              ...(url.searchParams.has("download") ? { "Content-Disposition": `attachment; filename="code-arena-${job.settings.duration}s.mp4"` } : {}) });
+            const stream = createReadStream(path, { start, end });
+            stream.on("error", () => res.destroy()); res.on("close", () => stream.destroy()); stream.pipe(res); return;
+          }
+          throw new HttpError(405, "Method not allowed");
+        }
         const asset = runtimeAsset(url.pathname);
         if (req.method === "GET" && asset) {
           res.writeHead(200, {
@@ -82,6 +111,17 @@ export function arenaServer(service: ArenaService, secret: string, availability?
         if (!match) throw new HttpError(404, "Not found");
         const id = match[1]!,
           action = match[2];
+        if (action === "exports" && req.method === "POST") {
+          const input = await body(req);
+          if (!input || typeof input.outputId !== "string" || Object.keys(input).some(k => !["outputId", "duration"].includes(k)))
+            throw new HttpError(400, "Choose an output and duration");
+          const view = service.view(owner, id);
+          if (view.status !== "ready") throw new HttpError(409, "Wait for the run to finish before exporting");
+          const source = input.outputId === "cube" && view.cube
+            ? { format: "cube", content: cubeDocument(view.cube) }
+            : service.artifact(owner, id, input.outputId);
+          json(res, await exports.enqueue(owner, id, input.outputId, source, input.duration), 202); return;
+        }
         if (!action) {
           if (req.method === "GET") json(res, service.view(owner, id));
           else if (req.method === "PATCH") json(res, service.touch(owner, id));

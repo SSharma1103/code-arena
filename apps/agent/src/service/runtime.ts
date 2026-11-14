@@ -1,4 +1,5 @@
 import { RUN_TIMEOUT_MS } from "../limits.js";
+import { exportInstructions } from "../video/document.js";
 import { chromium, type BrowserType } from "playwright";
 import type { ArenaMode, CubeState } from "@code-arena/contracts";
 import type { AgentTool, Message, ModelClient, ToolResult } from "../types.js";
@@ -27,6 +28,7 @@ export const modeInstructions: Record<ArenaMode, string> = {
   html: "Generate a complete HTML experience using write_file with format html. The default challenge is a ball bouncing inside a rotating hexagon, but follow the user if they request another HTML experience. Use inline scripts/styles. If needed, import Three.js from /runtime/three.module.js. Review with review_preview.",
   cube: "Use the Rubiks cube tools. Initially launch exactly one cube and wait for the user to press Start solving. Save the user instructions for solving. On subsequent solve requests inspect the existing game and choose each move yourself. Never create a replacement game during solving. Use rubiks_review_cube for optional visual inspection. Call finish only when solved.",
 };
+for (const mode of ["svg", "html", "3js"] as const) modeInstructions[mode] += exportInstructions;
 export type RuntimeOptions = {
   client: ModelClient;
   sessions: SessionManager;

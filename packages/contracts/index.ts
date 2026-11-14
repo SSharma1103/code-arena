@@ -1,4 +1,17 @@
 export type ArenaMode = "svg" | "3js" | "html" | "cube";
+/** Generated pages own their scene; the exporter owns the clock. */
+export interface VideoExportTimeline {
+  ready: boolean | Promise<void>;
+  renderAt(timeSeconds: number): Promise<void>;
+}
+export type VideoExportSettings = { duration: 5 | 10 | 15; width: 1080; height: 1920; fps: 30; seed: number };
+export type VideoExportJob = {
+  id: string; sessionId: string; outputId: string; sourceVersion: string;
+  settings: VideoExportSettings;
+  status: "queued" | "rendering" | "encoding" | "completed" | "failed";
+  progress: number; createdAt: string; updatedAt: string;
+  failure?: { code: string; message: string }; result?: string;
+};
 /** Ordered by OpenRouter popularity when returned by the model catalogue API. */
 export type ModelOption = {
   id: string;

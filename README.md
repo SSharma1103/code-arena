@@ -118,3 +118,7 @@ Firebase setup and Google sign-in instructions are in [the frontend README](apps
 Keep the agent on a private loopback connection and replace the development
 internal secret when deploying.
 No project license has been selected; choose one before offering reuse rights.
+
+## Video export
+
+Individual HTML, SVG, Three.js, and cube outputs can export silent vertical MP4 clips for reels. Run the separate video worker alongside the app; see [setup, timeline contract, verification, and limitations](apps/agent/VIDEO_EXPORT.md).

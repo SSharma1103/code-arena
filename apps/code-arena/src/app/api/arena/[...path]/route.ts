@@ -9,7 +9,7 @@ async function proxy(
   const { path } = await params;
   const route = "/" + path.join("/");
   if (
-    !/^\/(models(?:\/check)?|runtime\/three\.(min|module)\.js|sessions(?:\/[a-f0-9-]+(?:\/(?:runs|cancel|events|cube(?:\/start)?|artifacts\/[a-f0-9-]+))?)?)$/.test(
+    !/^\/(exports\/[a-f0-9-]+(?:\/(?:video|retry))?|models(?:\/check)?|runtime\/three\.(min|module)\.js|sessions(?:\/[a-f0-9-]+(?:\/(?:exports|runs|cancel|events|cube(?:\/start)?|artifacts\/[a-f0-9-]+))?)?)$/.test(
       route,
     )
   )
@@ -55,6 +55,7 @@ async function proxy(
     headers["last-event-id"] = request.headers.get("last-event-id")!;
   if (request.headers.get("content-type"))
     headers["content-type"] = request.headers.get("content-type")!;
+  if (request.headers.get("range")) headers.range = request.headers.get("range")!;
   try {
     if (Number(request.headers.get("content-length") ?? 0) > 100_000)
       return NextResponse.json(
@@ -81,6 +82,9 @@ async function proxy(
       "content-type",
       "content-security-policy",
       "content-disposition",
+      "content-length",
+      "accept-ranges",
+      "content-range",
       "cache-control",
       "x-content-type-options",
       "referrer-policy",

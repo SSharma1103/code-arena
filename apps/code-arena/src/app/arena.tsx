@@ -8,6 +8,7 @@ import RunToggle from "./run-toggle";
 import { useModelCheck } from "./use-model-check";
 import ModelPicker from "./model-picker";
 import { AuthControl } from "./auth";
+import VideoExport from "./video-export";
 import type {
   ArenaEvent,
   ArenaMode,
@@ -752,6 +753,7 @@ function ArenaWorkspace({
 }
 
 export function OutputPanel({
+  id,
   session,
   tab,
   setTab,
@@ -806,6 +808,7 @@ export function OutputPanel({
           ))}
         </div>
         <div className="artifact-actions">
+          {(session?.id ?? id) && (artifact || session?.cube || ended) && <VideoExport key={`${session?.id ?? id}:${artifact?.id ?? (session?.cube ? "cube" : "saved")}`} sessionId={(session?.id ?? id)!} outputId={session?.cube ? "cube" : artifact?.id ?? ""} disabled={ended || running || !(artifact || session?.cube)} />}
           {session && session.artifacts.length > 1 && (
             <select
               aria-label="Select artifact"

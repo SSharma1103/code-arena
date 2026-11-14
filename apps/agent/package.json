@@ -7,6 +7,9 @@
     "dev": "node --watch --import tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "worker:video": "tsx src/video/index.ts",
+    "worker:video:production": "node dist/video/index.js",
+    "test:video": "tsx tests/video-smoke.ts",
     "typecheck": "tsc --noEmit",
     "cli": "tsx src/cli/index.tsx",
     "test": "tsx --test tests/*.test.ts*"
@@ -14,11 +17,14 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.3.0",
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0",
     "ink-testing-library": "^4.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
   },
   "dependencies": {
+    "@code-arena/contracts": "*",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@openrouter/sdk": "^1.5.70",
     "ink": "^8.0.0",
@@ -27,7 +33,6 @@
     "playwright": "^1.65.0",
     "react": "^19.3.1",
     "rubiks-cube-mcp-server": "1.1.1",
-    "@code-arena/contracts": "*",
     "three": "0.128.0"
   }
 }
